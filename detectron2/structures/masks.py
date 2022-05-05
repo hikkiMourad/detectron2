@@ -32,7 +32,12 @@ def polygons_to_bitmask(polygons: List[np.ndarray], height: int, width: int) -> 
         # COCOAPI does not support empty polygons
         return np.zeros((height, width)).astype(np.bool)
     rles = mask_util.frPyObjects(polygons, height, width)
-    rle = mask_util.merge(rles)
+    if rles.ndim >2:
+        reduced=np.add.reduce(rles,axis=2)
+        rle = np.where(reduced>=2,0,reduced)
+    else:
+        rle = rles
+    
     return mask_util.decode(rle).astype(np.bool)
 
 
