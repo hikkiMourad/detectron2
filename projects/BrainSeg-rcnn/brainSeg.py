@@ -127,7 +127,7 @@ class ContextFusion(torch.nn.Module):
 
 
 
-
+@BACKBONE_REGISTRY.register()
 class BrainSegBackbone(Backbone):
     def __init__(self, cfg, input_shape):
         super().__init__()
@@ -146,3 +146,5 @@ class BrainSegBackbone(Backbone):
           print(f'feature shape after featureLeatning{f.shape}')
         out = self.contextFusion(features)
         return out
+    def output_shape(self):
+      return {f'level{i}' : ShapeSpec(channels=64, stride=2**i) for i in range(1, 5)}
