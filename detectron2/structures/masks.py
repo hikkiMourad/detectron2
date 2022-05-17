@@ -35,7 +35,7 @@ def polygons_to_bitmask(polygons: List[np.ndarray], height: int, width: int) -> 
     if len(rles) >2:
 
         reduced=np.add.reduce(mask_util.decode(rles),axis=2)
-        rle = np.where(reduced>=2,0,reduced).astype(np.bool)
+        rle = np.where( (reduced % 2) == 0 , 0 , reduced).astype(np.bool)
 
     else:
         
