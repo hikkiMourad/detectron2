@@ -49,18 +49,18 @@ class FeatureLearning(torch.nn.Module):
     def forward(self, x1, x2, x3, x4):
         outputs = []
         for idx , (level, conv) in enumerate(zip(self.levels, self.out_convs)):
-            print(f"=========level{idx}")
-            print(f"shape before level conv {x1.shape}")
+            
+            
             
             x1, x2, x3, x4 = level(x1, x2, x3, x4)
             
-            print(f"shape after level conv {x1.shape}")
+            
             
             outputs.append(conv(torch.cat([x1, x2, x3, x4], dim=1)))
             
             x2, x3, x4 = x1+x2, x2+x3, x3+x4
 
-            print(outputs[idx].shape)
+            
 
        
         return outputs
@@ -81,8 +81,8 @@ class UACBlock(torch.nn.Module):
     def forward(self, cat1, cat2):
 
         cat1 = self.upsample(cat1)
-        print(cat1.shape)
-        print(cat2.shape)
+        
+        
         cat1 = self.conv1(cat1)
 
         cat = torch.add(cat1, cat2)
@@ -112,7 +112,7 @@ class ContextFusion(torch.nn.Module):
         outputs[prev_feature] = features[-1]
 
         for id, (feature , uacBlock) in enumerate(zip(features[::-1][1:], self.uacBlocks[::-1])):
-            print(id)
+            
                 
             outputs[f'level{nb_features - id -1 }'] = uacBlock(outputs[prev_feature], feature)
             prev_feature = f'level{nb_features - id -1 }'
@@ -122,7 +122,7 @@ class ContextFusion(torch.nn.Module):
 
 
 
-# @BACKBONE_REGISTRY.register()
+@BACKBONE_REGISTRY.register()
 class BrainSegBackbone(Backbone):
     def __init__(self, cfg, input_shape):
         super().__init__()
@@ -137,10 +137,10 @@ class BrainSegBackbone(Backbone):
     def forward(self, image):
         
         x1, x2, x3, x4 = torch.split(image,1,dim=1)
-        features = self.featureLearning(x1, x2, x3, x4)
-        for f in features:
-          print(f'feature shape after featureLeatning{f.shape}')
+        features = self.featureLearning(x1, x2, x3, x4) 
         out = self.contextFusion(features)
         return out
+
+
     def output_shape(self):
       return {f'level{i}' : ShapeSpec(channels=64, stride=2**i) for i in range(1, 5)}
