@@ -30,18 +30,18 @@ class FeatureLearningLevel(torch.nn.Module):
 
 
 class FeatureLearning(torch.nn.Module):
-    def __init__(self, inChannels, outChannels) -> None:
+    def __init__(self, fl_inChannels,fl_outChannels, fl_lateral_channel) -> None:
         super().__init__()
         self.levels = []
         self.out_convs = []
-        for idx,( inchannel, outchannel) in enumerate(zip(inChannels, outChannels)):
+        for idx,( inchannel, outchannel) in enumerate(zip(fl_inChannels, fl_outChannels)):
             level_name = f'level{idx}'
             level = FeatureLearningLevel(in_channels=inchannel, out_channels=outchannel, stride=2)
             self.add_module(level_name, level)
             self.levels.append(level)
 
             conv_name = f'out_conv{idx}'
-            conv = torch.nn.Conv2d(in_channels=outchannel * 4, out_channels=64, kernel_size=3, stride=1, padding=1)
+            conv = torch.nn.Conv2d(in_channels= outchannel * 4, out_channels=fl_lateral_channel, kernel_size=3, stride=1, padding=1)
             self.add_module(conv_name, conv)
             self.out_convs.append(conv)
 
@@ -57,13 +57,8 @@ class FeatureLearning(torch.nn.Module):
             print(f"shape after level conv {x1.shape}")
             
             outputs.append(conv(torch.cat([x1, x2, x3, x4], dim=1)))
-            tempx2 = torch.add(x2, x1)
-            tempx3 = torch.add(x3, x2)
-            tempx4 = torch.add(x4, x3)
-
-            x2 = tempx2
-            x3 = tempx3
-            x4 = tempx4
+            
+            x2, x3, x4 = x1+x2, x2+x3, x3+x4
 
             print(outputs[idx].shape)
 
@@ -71,17 +66,17 @@ class FeatureLearning(torch.nn.Module):
         return outputs
 
 class UACBlock(torch.nn.Module):
-    def __init__(self, inchannel, outchannel) -> None:
+    def __init__(self, inchannel) -> None:
         super().__init__()
         self.in_channels = inchannel
-        self.out_channels = outchannel
+        
         self.stride = 1
         self.upsample = torch.nn.UpsamplingBilinear2d(scale_factor=2)
-        self.conv1 = torch.nn.Conv2d(64, 64, kernel_size=1, stride= self.stride)
+        self.conv1 = torch.nn.Conv2d(inchannel, inchannel, kernel_size=1, stride= self.stride)
         
         curr_kwargs ={}
-        curr_kwargs['bottleneck_channels'] = int(self.out_channels / 2)
-        self.bottleneckBlock = BottleneckBlock(128 , 64,   **curr_kwargs)
+        curr_kwargs['bottleneck_channels'] = int(inchannel / 2)
+        self.bottleneckBlock = BottleneckBlock(inchannel * 2 , inchannel,   **curr_kwargs)
 
     def forward(self, cat1, cat2):
 
@@ -100,12 +95,12 @@ class UACBlock(torch.nn.Module):
         
 
 class ContextFusion(torch.nn.Module):
-    def __init__(self, cf_channels) -> None:
+    def __init__(self, fl_lateral_channel, nb_levels) -> None:
         super().__init__()
         self.uacBlocks = []
-        for idx , channel in enumerate(cf_channels[:-1]):
+        for idx in range(nb_levels - 1):
           block_name = 'uacBloc'+str(idx+1)
-          block = UACBlock(cf_channels[idx +1], channel)
+          block = UACBlock(fl_lateral_channel)
           self.add_module(block_name, block)
           self.uacBlocks.append(block)
     
@@ -127,16 +122,17 @@ class ContextFusion(torch.nn.Module):
 
 
 
-@BACKBONE_REGISTRY.register()
+# @BACKBONE_REGISTRY.register()
 class BrainSegBackbone(Backbone):
     def __init__(self, cfg, input_shape):
         super().__init__()
         self.fl_inChannels = [1,32,64,128]
         self.fl_outChannels = [32,64,128, 256]
-        self.cf_channels = self.fl_outChannels
+        self.fl_lateral_channel = 64
+        self.nb_levels = len(self.fl_inChannels)
 
-        self.featureLearning = FeatureLearning(self.fl_inChannels, self.fl_outChannels)
-        self.contextFusion = ContextFusion(self.cf_channels)
+        self.featureLearning = FeatureLearning(self.fl_inChannels, self.fl_outChannels, self.fl_lateral_channel)
+        self.contextFusion = ContextFusion(self.fl_lateral_channel, self.nb_levels)
 
     def forward(self, image):
         
