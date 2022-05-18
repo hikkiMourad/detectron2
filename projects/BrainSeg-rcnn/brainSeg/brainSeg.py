@@ -107,6 +107,8 @@ class UACBlock(torch.nn.Module):
 
         cat1 = self.conv1(cat1)
 
+        cat1 = F.relu_(cat1)
+
         cat = torch.add(cat1, cat2)
 
         cat = torch.cat([cat, cat2], dim=1)
