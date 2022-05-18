@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from detectron2.modeling import BACKBONE_REGISTRY, Backbone, ShapeSpec
 from detectron2.modeling.backbone.resnet import BottleneckBlock
-from detectron2.layers import get_norm
+from detectron2.layers import get_norm, Conv2d
 
 
 class FeatureLearningLevel(torch.nn.Module):
@@ -12,7 +12,7 @@ class FeatureLearningLevel(torch.nn.Module):
         self.convs = []
         for i in range(1, 5):
             conv_name = f"conv{i}"
-            conv = torch.nn.Conv2d(
+            conv = Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=3,
@@ -51,7 +51,7 @@ class FeatureLearning(torch.nn.Module):
             self.levels.append(level)
 
             conv_name = f"out_conv{idx}"
-            conv = torch.nn.Conv2d(
+            conv = Conv2d(
                 in_channels=outchannel * 4,
                 out_channels=fl_lateral_channel,
                 kernel_size=3,
@@ -82,7 +82,7 @@ class UACBlock(torch.nn.Module):
 
         self.stride = 1
         self.upsample = torch.nn.UpsamplingBilinear2d(scale_factor=2)
-        self.conv1 = torch.nn.Conv2d(
+        self.conv1 = Conv2d(
             inchannel,
             inchannel,
             kernel_size=1,
