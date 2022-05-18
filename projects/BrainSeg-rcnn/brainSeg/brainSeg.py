@@ -51,13 +51,18 @@ class FeatureLearning(torch.nn.Module):
             self.levels.append(level)
 
             conv_name = f"out_conv{idx}"
-            conv = Conv2d(
-                in_channels=outchannel * 4,
-                out_channels=fl_lateral_channel,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                norm=get_norm(norm, fl_lateral_channel),
+            # conv = Conv2d(
+            #     in_channels=outchannel * 4,
+            #     out_channels=fl_lateral_channel,
+            #     kernel_size=3,
+            #     stride=1,
+            #     padding=1,
+            #     norm=get_norm(norm, fl_lateral_channel),
+            # )
+            curr_kwargs = {}
+            curr_kwargs["bottleneck_channels"] = int((outchannel * 4) / 2)
+            conv = BottleneckBlock(
+                outchannel * 4, fl_lateral_channel, **curr_kwargs, norm=norm
             )
             self.add_module(conv_name, conv)
             self.out_convs.append(conv)
