@@ -6,55 +6,54 @@ from detectron2.layers import get_norm, Conv2d
 
 
 class FeatureLearningLevel(torch.nn.Module):
-    def __init__(self, in_channels=1, out_channels=64, stride=2, norm="BN") -> None:
+    def __init__(self, in_channels=1, out_channels=64, stride=2, norm="BN", fl_lateral_channel=64) -> None:
         super(FeatureLearningLevel, self).__init__()
-        self.conv1 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
-        self.conv2 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
-        self.conv3 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
-        self.conv4 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
-
+        self.conv1 = Conv2d(in_channels=in_channels, out_channels=out_channels,
+                            kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv2 = Conv2d(in_channels=in_channels, out_channels=out_channels,
+                            kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv3 = Conv2d(in_channels=in_channels, out_channels=out_channels,
+                            kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv4 = Conv2d(in_channels=in_channels, out_channels=out_channels,
+                            kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        curr_kwargs = {}
+        curr_kwargs["bottleneck_channels"] = int((out_channels * 4) / 2)
+        self.conv_out = BottleneckBlock(
+            out_channels * 4, fl_lateral_channel, **curr_kwargs, norm=norm
+        )
 
     def forward(self, x1, x2, x3, x4):
         x1 = F.max_pool2d(F.relu(self.conv1(x1)), kernel_size=3, stride=1, padding=1)
         x2 = F.max_pool2d(F.relu(self.conv1(x2)), kernel_size=3, stride=1, padding=1)
         x3 = F.max_pool2d(F.relu(self.conv1(x3)), kernel_size=3, stride=1, padding=1)
         x4 = F.max_pool2d(F.relu(self.conv1(x4)), kernel_size=3, stride=1, padding=1)
-        return x1, x2, x3, x4
+        cat = self.conv_out(torch.cat([x1, x2, x3, x4], dim=1))
+        x2, x3, x4 = x1 + x2, x2 + x3, x3 + x4
+
+        return x1, x2, x3, x4, cat
 
 
 class FeatureLearning(torch.nn.Module):
     def __init__(self, fl_inChannels, fl_outChannels, fl_lateral_channel, norm) -> None:
         super(FeatureLearning, self).__init__()
-        self.levels = []
-        self.out_convs = []
+        self.levels = torch.nn.ModuleList()
+
         for idx, (inchannel, outchannel) in enumerate(
             zip(fl_inChannels, fl_outChannels)
         ):
-            level_name = f"level{idx}"
-            level = FeatureLearningLevel(
-                in_channels=inchannel, out_channels=outchannel, stride=2, norm=norm
-            )
-            self.add_module(level_name, level)
-            self.levels.append(level)
 
-            conv_name = f"out_conv{idx}"
-            curr_kwargs = {}
-            curr_kwargs["bottleneck_channels"] = int((outchannel * 4) / 2)
-            conv = BottleneckBlock(
-                outchannel * 4, fl_lateral_channel, **curr_kwargs, norm=norm
+            level = FeatureLearningLevel(
+                in_channels=inchannel, out_channels=outchannel, stride=2, norm=norm, fl_lateral_channel=fl_lateral_channel
             )
-            self.add_module(conv_name, conv)
-            self.out_convs.append(conv)
+
+            self.levels.append(level)
 
     def forward(self, x1, x2, x3, x4):
         outputs = []
-        for idx, (level, conv) in enumerate(zip(self.levels, self.out_convs)):
+        for level in self.levels:
 
-            x1, x2, x3, x4 = level(x1, x2, x3, x4)
-
-            outputs.append(conv(torch.cat([x1, x2, x3, x4], dim=1)))
-
-            x2, x3, x4 = x1 + x2, x2 + x3, x3 + x4
+            x1, x2, x3, x4, cat = level(x1, x2, x3, x4)
+            outputs.append(cat)
 
         return outputs
 
