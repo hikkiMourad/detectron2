@@ -8,30 +8,17 @@ from detectron2.layers import get_norm, Conv2d
 class FeatureLearningLevel(torch.nn.Module):
     def __init__(self, in_channels=1, out_channels=64, stride=2, norm="BN") -> None:
         super(FeatureLearningLevel, self).__init__()
+        self.conv1 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv2 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv3 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
+        self.conv4 = Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, padding=1, norm=get_norm(norm, out_channels))
 
-        self.convs = []
-        for i in range(1, 5):
-            conv_name = f"conv{i}"
-            conv = Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=3,
-                stride=stride,
-                padding=1,
-                norm=get_norm(norm, out_channels),
-            )
-            self.add_module(conv_name, conv)
-            self.convs.append(conv)
 
     def forward(self, x1, x2, x3, x4):
-        inputs = [x1, x2, x3, x4]
-        for idx, (conv, x) in enumerate(zip(self.convs, inputs)):
-            x = conv(x)
-            x = F.relu_(x)
-            x = F.max_pool2d(x, kernel_size=3, stride=1, padding=1)
-            inputs[idx] = x
-        x1, x2, x3, x4 = inputs
-        del inputs
+        x1 = F.max_pool2d(F.relu(self.conv1(x1)), kernel_size=3, stride=1, padding=1)
+        x2 = F.max_pool2d(F.relu(self.conv1(x2)), kernel_size=3, stride=1, padding=1)
+        x3 = F.max_pool2d(F.relu(self.conv1(x3)), kernel_size=3, stride=1, padding=1)
+        x4 = F.max_pool2d(F.relu(self.conv1(x4)), kernel_size=3, stride=1, padding=1)
         return x1, x2, x3, x4
 
 
@@ -51,14 +38,6 @@ class FeatureLearning(torch.nn.Module):
             self.levels.append(level)
 
             conv_name = f"out_conv{idx}"
-            # conv = Conv2d(
-            #     in_channels=outchannel * 4,
-            #     out_channels=fl_lateral_channel,
-            #     kernel_size=3,
-            #     stride=1,
-            #     padding=1,
-            #     norm=get_norm(norm, fl_lateral_channel),
-            # )
             curr_kwargs = {}
             curr_kwargs["bottleneck_channels"] = int((outchannel * 4) / 2)
             conv = BottleneckBlock(
