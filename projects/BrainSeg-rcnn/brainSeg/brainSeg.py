@@ -129,9 +129,10 @@ class ContextFusion(torch.nn.Module):
 class BrainSegBackbone(Backbone):
     def __init__(self, cfg, input_shape):
         super(BrainSegBackbone, self).__init__()
-        self.fl_inChannels = [1, 32, 64, 128]
-        self.fl_outChannels = [32, 64, 128, 256]
-        self.fl_lateral_channel = 64
+        self.fl_inChannels = cfg.MODEL.BRAINSEG.fl_inChannels
+        self.fl_outChannels = cfg.MODEL.BRAINSEG.fl_outChannels
+        self.fl_lateral_channel = cfg.MODEL.BRAINSEG.fl_lateral_channel
+
         self.nb_levels = len(self.fl_inChannels)
 
         self.featureLearning = FeatureLearning(
@@ -152,4 +153,4 @@ class BrainSegBackbone(Backbone):
         return out
 
     def output_shape(self):
-        return {f"level{i}": ShapeSpec(channels=64, stride=2**i) for i in range(1, 5)}
+        return {f"level{i}": ShapeSpec(channels=self.fl_lateral_channel, stride=2**i) for i in range(1, 5)}
