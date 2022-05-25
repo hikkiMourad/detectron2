@@ -7,7 +7,7 @@ from detectron2.layers import get_norm, Conv2d
 
 class FeatureLearningLevel(torch.nn.Module):
     def __init__(self, in_channels=1, out_channels=64, stride=2, norm="BN") -> None:
-        super().__init__()
+        super(FeatureLearningLevel, self).__init__()
 
         self.convs = []
         for i in range(1, 5):
@@ -37,7 +37,7 @@ class FeatureLearningLevel(torch.nn.Module):
 
 class FeatureLearning(torch.nn.Module):
     def __init__(self, fl_inChannels, fl_outChannels, fl_lateral_channel, norm) -> None:
-        super().__init__()
+        super(FeatureLearning, self).__init__()
         self.levels = []
         self.out_convs = []
         for idx, (inchannel, outchannel) in enumerate(
@@ -82,7 +82,7 @@ class FeatureLearning(torch.nn.Module):
 
 class UACBlock(torch.nn.Module):
     def __init__(self, inchannel, norm) -> None:
-        super().__init__()
+        super(UACBlock, self).__init__()
         self.in_channels = inchannel
 
         self.stride = 1
@@ -120,7 +120,7 @@ class UACBlock(torch.nn.Module):
 
 class ContextFusion(torch.nn.Module):
     def __init__(self, fl_lateral_channel, nb_levels, norm) -> None:
-        super().__init__()
+        super(ContextFusion, self).__init__()
         self.uacBlocks = []
         for idx in range(nb_levels - 1):
             block_name = "uacBloc" + str(idx + 1)
@@ -150,7 +150,7 @@ class ContextFusion(torch.nn.Module):
 @BACKBONE_REGISTRY.register()
 class BrainSegBackbone(Backbone):
     def __init__(self, cfg, input_shape):
-        super().__init__()
+        super(BrainSegBackbone, self).__init__()
         self.fl_inChannels = [1, 32, 64, 128]
         self.fl_outChannels = [32, 64, 128, 256]
         self.fl_lateral_channel = 64
