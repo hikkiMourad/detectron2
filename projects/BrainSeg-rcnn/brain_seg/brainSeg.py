@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from detectron2.modeling import BACKBONE_REGISTRY, Backbone, ShapeSpec
 from detectron2.modeling.backbone.resnet import BottleneckBlock
 from detectron2.layers import get_norm, Conv2d
-
+import fvcore.nn.weight_init as weight_init
 
 class FeatureLearningLevel(torch.nn.Module):
     def __init__(self, in_channels=1, out_channels=64, stride=2, norm="BN", fl_lateral_channel=64) -> None:
@@ -21,6 +21,9 @@ class FeatureLearningLevel(torch.nn.Module):
         self.conv_out = BottleneckBlock(
             out_channels * 4, fl_lateral_channel, **curr_kwargs, norm=norm
         )
+
+        for layer in [self.conv1, self.conv2, self.conv3, self.conv4]:
+            weight_init.c2_msra_fill(layer)
 
     def forward(self, x1, x2, x3, x4):
         x1 = F.max_pool2d(F.relu(self.conv1(x1)), kernel_size=3, stride=1, padding=1)
@@ -74,10 +77,12 @@ class UACBlock(torch.nn.Module):
         )
 
         curr_kwargs = {}
-        curr_kwargs["bottleneck_channels"] = int(inchannel / 2)
+        curr_kwargs["bottleneck_channels"] = int(inchannel)
         self.bottleneckBlock = BottleneckBlock(
             inchannel * 2, inchannel, **curr_kwargs, norm=norm
         )
+        for layer in [self.conv1]:
+            weight_init.c2_msra_fill(layer)
 
     def forward(self, cat1, cat2):
 
@@ -99,6 +104,9 @@ class UACBlock(torch.nn.Module):
 class ContextFusion(torch.nn.Module):
     def __init__(self, fl_lateral_channel, nb_levels, norm) -> None:
         super(ContextFusion, self).__init__()
+
+        self.final_conv = Conv2d(in_channels=fl_lateral_channel * nb_levels, out_channels=fl_lateral_channel,
+                            kernel_size=3, stride=1, padding=1, norm=get_norm(norm, fl_lateral_channel))
         self.uacBlocks = []
         for idx in range(nb_levels - 1):
             block_name = "uacBloc" + str(idx + 1)
@@ -122,7 +130,12 @@ class ContextFusion(torch.nn.Module):
             )
             prev_feature = f"level{nb_features - id -1 }"
 
-        return outputs
+        for idx,name in enumerate(sorted(outputs.keys())):
+            outputs[name] = F.interpolate(outputs[name], scale_factor=2**idx, mode='bilinear', align_corners=True)
+
+        out = self.final_conv(torch.cat(list(outputs.values()), dim=1))
+
+        return {'out': out}
 
 
 @BACKBONE_REGISTRY.register()
@@ -153,4 +166,5 @@ class BrainSegBackbone(Backbone):
         return out
 
     def output_shape(self):
-        return {f"level{i}": ShapeSpec(channels=self.fl_lateral_channel, stride=2**i) for i in range(1, 5)}
+        return {'out' : ShapeSpec(channels=self.fl_lateral_channel, stride=2)}
+        # return {f"level{i}": ShapeSpec(channels=self.fl_lateral_channel, stride=2**i) for i in range(1, 5)}
